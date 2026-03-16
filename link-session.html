@@ -24,28 +24,33 @@
             <!-- Step 1: Phone Number -->
             <div id="step1" class="step active">
                 <h3>Step 1: Enter Your Number</h3>
-                <input type="text" id="phoneNumber" placeholder="e.g., 1234567890" class="input-field">
-                <p class="note">Include country code (no + or spaces)</p>
+                <input type="text" id="phoneNumber" placeholder="e.g., 2348224333922" class="input-field">
+                <p class="note">Include country code (e.g., 234 for Nigeria)</p>
                 <button onclick="startSession()" class="btn-primary">Start</button>
+                <div id="step1Message" class="message"></div>
             </div>
 
-            <!-- Step 2: QR Code -->
+            <!-- Step 2: Waiting for WhatsApp -->
             <div id="step2" class="step">
-                <h3>Step 2: Scan QR Code</h3>
-                <div id="qrContainer" class="qr-container">
-                    <div id="qrLoading">Generating QR code...</div>
-                    <img id="qrImage" src="" alt="QR Code" style="display: none;">
+                <h3>Step 2: Check Your WhatsApp</h3>
+                <div class="waiting-box">
+                    <div class="spinner"></div>
+                    <p>A code has been sent to your WhatsApp number.</p>
+                    <p class="highlight">Open WhatsApp and enter the code there.</p>
+                    <p class="note">The session will be created automatically after you enter the code.</p>
                 </div>
-                <p>Open WhatsApp → Menu → Linked Devices → Link Device</p>
+                <div id="step2Status" class="status"></div>
+                <button onclick="checkStatus()" class="btn-secondary">Check Status</button>
             </div>
 
-            <!-- Step 3: Session ID -->
+            <!-- Step 3: Session Created -->
             <div id="step3" class="step">
-                <h3>Step 3: Get Your Session ID</h3>
+                <h3>✅ Session Created!</h3>
                 <div class="success-box">
-                    <p>✅ Connected! Check your WhatsApp for the session ID.</p>
-                    <div id="sessionIdDisplay" class="session-id">Waiting for session...</div>
+                    <p>Your WhatsApp session has been created successfully!</p>
+                    <p><strong>Session ID:</strong> <span id="displaySessionId"></span></p>
                     <button onclick="copySessionId()" class="btn-secondary">Copy Session ID</button>
+                    <button onclick="goToLinkBot()" class="btn-primary" style="margin-top: 15px;">Link Bot Now</button>
                 </div>
             </div>
 
@@ -54,27 +59,36 @@
                 <h3>Step 4: Link Your Bot</h3>
                 <input type="text" id="linkSessionId" placeholder="Paste session ID here" class="input-field">
                 <button onclick="linkBot()" class="btn-primary">Link Bot</button>
-                <div id="linkResult" class="result"></div>
+                <div id="linkResult" class="message"></div>
             </div>
         </div>
     </div>
 
     <script>
-        // IMPORTANT: Change this to your Render backend URl
-const BACKEND_URL = 'https://whatapp-bot-backend.onrender.com';
+        // IMPORTANT: Change this to your Render backend URL
+        const BACKEND_URL = 'https://whatapp-bot-backend.onrender.com';
         
         let socket = null;
         let currentSessionId = null;
         let currentPhoneNumber = '';
+        let statusInterval = null;
 
         function startSession() {
             const phone = document.getElementById('phoneNumber').value;
             if (!phone) {
-                alert('Please enter your phone number');
+                showMessage('step1Message', 'Please enter your phone number', 'error');
+                return;
+            }
+
+            // Validate phone number (basic)
+            if (!phone.match(/^\d+$/)) {
+                showMessage('step1Message', 'Please enter numbers only', 'error');
                 return;
             }
 
             currentPhoneNumber = phone;
+            
+            showMessage('step1Message', 'Starting session...', 'info');
 
             // Connect to socket
             socket = io(BACKEND_URL);
@@ -94,46 +108,105 @@ const BACKEND_URL = 'https://whatapp-bot-backend.onrender.com';
                 .then(res => res.json())
                 .then(data => {
                     if (data.error) {
-                        alert(data.error);
+                        showMessage('step1Message', data.error, 'error');
                     } else {
                         currentSessionId = data.sessionId;
+                        
+                        // Move to step 2
+                        document.getElementById('step1').classList.remove('active');
+                        document.getElementById('step2').classList.add('active');
+                        
+                        // Start checking status
+                        startStatusCheck();
                     }
+                })
+                .catch(error => {
+                    showMessage('step1Message', 'Failed to connect to server', 'error');
                 });
             });
 
-            socket.on('qr', (data) => {
-                document.getElementById('step1').classList.remove('active');
-                document.getElementById('step2').classList.add('active');
-                document.getElementById('qrLoading').style.display = 'none';
-                document.getElementById('qrImage').style.display = 'block';
-                document.getElementById('qrImage').src = data.qr;
-            });
-
             socket.on('ready', (data) => {
+                // Session is ready!
+                stopStatusCheck();
+                
                 document.getElementById('step2').classList.remove('active');
                 document.getElementById('step3').classList.add('active');
-                document.getElementById('sessionIdDisplay').textContent = data.sessionId;
-                currentSessionId = data.sessionId;
+                document.getElementById('displaySessionId').textContent = data.sessionId;
                 
                 // Save to localStorage
                 saveSession(data.sessionId, currentPhoneNumber);
+                
+                showMessage('step2Status', '✅ Connected successfully!', 'success');
+            });
+
+            socket.on('auth_failure', (data) => {
+                showMessage('step2Status', '❌ Authentication failed. Please try again.', 'error');
+                stopStatusCheck();
             });
         }
 
+        function startStatusCheck() {
+            // Check status every 5 seconds
+            statusInterval = setInterval(() => {
+                checkStatus();
+            }, 5000);
+        }
+
+        function stopStatusCheck() {
+            if (statusInterval) {
+                clearInterval(statusInterval);
+                statusInterval = null;
+            }
+        }
+
+        function checkStatus() {
+            if (!currentSessionId) return;
+
+            fetch(`${BACKEND_URL}/api/session-status/${currentSessionId}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'connected') {
+                        // Session is connected
+                        stopStatusCheck();
+                        
+                        document.getElementById('step2').classList.remove('active');
+                        document.getElementById('step3').classList.add('active');
+                        document.getElementById('displaySessionId').textContent = currentSessionId;
+                        
+                        // Save to localStorage
+                        saveSession(currentSessionId, currentPhoneNumber);
+                        
+                        showMessage('step2Status', '✅ Connected successfully!', 'success');
+                    } else {
+                        showMessage('step2Status', `Status: ${data.status}...`, 'info');
+                    }
+                })
+                .catch(error => {
+                    console.log('Status check error:', error);
+                });
+        }
+
         function copySessionId() {
-            const sessionId = document.getElementById('sessionIdDisplay').textContent;
-            navigator.clipboard.writeText(sessionId);
-            alert('Session ID copied!');
-            
-            // Show step 4
+            navigator.clipboard.writeText(currentSessionId);
+            showMessage('step3Message', 'Session ID copied!', 'success');
+        }
+
+        function goToLinkBot() {
             document.getElementById('step3').classList.remove('active');
             document.getElementById('step4').classList.add('active');
-            document.getElementById('linkSessionId').value = sessionId;
+            document.getElementById('linkSessionId').value = currentSessionId;
         }
 
         function linkBot() {
             const sessionId = document.getElementById('linkSessionId').value;
             
+            if (!sessionId) {
+                showMessage('linkResult', 'Please enter session ID', 'error');
+                return;
+            }
+
+            showMessage('linkResult', 'Linking bot...', 'info');
+
             fetch(`${BACKEND_URL}/api/link-bot`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -145,13 +218,21 @@ const BACKEND_URL = 'https://whatapp-bot-backend.onrender.com';
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
-                    document.getElementById('linkResult').innerHTML = 
-                        '<div class="success">✅ Bot linked! Check WhatsApp.</div>';
+                    showMessage('linkResult', '✅ Bot linked successfully! Check WhatsApp.', 'success');
                 } else {
-                    document.getElementById('linkResult').innerHTML = 
-                        '<div class="error">❌ ' + data.error + '</div>';
+                    showMessage('linkResult', '❌ ' + data.error, 'error');
                 }
+            })
+            .catch(error => {
+                showMessage('linkResult', '❌ Failed to link bot', 'error');
             });
+        }
+
+        function showMessage(elementId, message, type) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.innerHTML = `<div class="${type}">${message}</div>`;
+            }
         }
 
         function saveSession(sessionId, phone) {
@@ -159,6 +240,14 @@ const BACKEND_URL = 'https://whatapp-bot-backend.onrender.com';
             sessions.push({ id: sessionId, phone, date: new Date().toISOString() });
             localStorage.setItem('sessions', JSON.stringify(sessions));
         }
+
+        // Clean up on page unload
+        window.addEventListener('beforeunload', () => {
+            stopStatusCheck();
+            if (socket) {
+                socket.disconnect();
+            }
+        });
     </script>
 </body>
-</html>
+                    </html>
