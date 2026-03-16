@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - WhatsApp Bot</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">🤖 WhatsApp Bot</div>
+        <div class="nav-links">
+            <a href="index.html">Home</a>
+            <a href="link-session.html">Link Session</a>
+            <a href="dashboard.html" class="active">Dashboard</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h2>Your Sessions</h2>
+        <div id="sessionList" class="session-list"></div>
+
+        <h2>Bot Commands</h2>
+        <div class="commands">
+            <div class="command">.menu - Show all commands</div>
+            <div class="command">.ping - Test bot</div>
+            <div class="command">.time - Current time</div>
+            <div class="command">.info - Bot info</div>
+            <div class="command">.session - Show session ID</div>
+        </div>
+    </div>
+
+    <script>
+        function loadSessions() {
+            const sessions = JSON.parse(localStorage.getItem('sessions') || '[]');
+            const list = document.getElementById('sessionList');
+            
+            if (sessions.length === 0) {
+                list.innerHTML = '<p>No sessions yet. <a href="link-session.html">Create one</a></p>';
+                return;
+            }
+
+            let html = '';
+            sessions.forEach(s => {
+                html += `
+                    <div class="session-card">
+                        <div><strong>Session:</strong> ${s.id}</div>
+                        <div><strong>Phone:</strong> ${s.phone}</div>
+                        <div><strong>Date:</strong> ${new Date(s.date).toLocaleString()}</div>
+                        <div><span class="status">✅ Active</span></div>
+                    </div>
+                `;
+            });
+            list.innerHTML = html;
+        }
+
+        loadSessions();
+    </script>
+</body>
+</html>
