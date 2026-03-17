@@ -757,3 +757,49 @@ body {
     color: white;
     text-decoration: underline;
     }
+
+/* Add these to your existing styles.css */
+.code-box {
+    font-size: 3rem;
+    font-weight: bold;
+    font-family: monospace;
+    text-align: center;
+    padding: 30px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 15px;
+    margin: 20px 0;
+    letter-spacing: 5px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+}
+
+.instructions {
+    background: #f7fafc;
+    padding: 20px;
+    border-radius: 10px;
+    margin: 20px 0;
+    line-height: 2;
+}
+
+.instructions p {
+    margin: 10px 0;
+}
+
+.instructions strong {
+    color: #667eea;
+}
+
+.spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #667eea;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin: 20px auto;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
